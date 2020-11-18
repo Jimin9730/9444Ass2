@@ -68,8 +68,8 @@ def convertNetOutput(ratingOutput, categoryOutput):
     rating, and 0, 1, 2, 3, or 4 for the business category.  If your network
     outputs a different representation convert the output here.
     """
-    #ratingOutput = (ratingOutput > 0.5).int()
-    return ratingOutput.round(), categoryOutput.max(dim=1, keepdim=True)[1]
+    ratingOutput = (ratingOutput > 0.5).long()
+    return ratingOutput, categoryOutput.argmax(dim=1)
 
 ################################################################################
 ###################### The following determines the model ######################
@@ -109,7 +109,7 @@ class network(tnn.Module):
         feature_rate = self.dropout(self.fc2_rate(feature_rate))
         output_rate = self.sigmoid(feature_rate)
         #output_rate = self.sigmoid(self.fc2_rate(feature_rate))
-        #output_rate = output_rate.squeeze()
+        output_rate = output_rate.squeeze()
         
         output_category, (hidden_category, cell_category) = self.rnn_category(input)
         # 这里也不用dropout
@@ -136,10 +136,8 @@ class loss(tnn.Module):
         self.category_loss = tnn.CrossEntropyLoss()
 
     def forward(self, ratingOutput, categoryOutput, ratingTarget, categoryTarget):
-        squeezed_rating = ratingOutput.squeeze(1)
-        squeezed_category = categoryOutput.squeeze(1)
         ratingTarget = ratingTarget.float()
-        return self.rate_loss(squeezed_rating, ratingTarget) + self.category_loss(squeezed_category, categoryTarget)
+        return self.rate_loss(ratingOutput, ratingTarget) + self.category_loss(categoryOutput, categoryTarget)
 
 net = network()
 # net = network(vocab_size, embedding_size, output_size, pad_idx, hidden_size, dropout)
@@ -151,7 +149,7 @@ lossFunc = loss()
 
 trainValSplit = 0.8
 batchSize = 32
-epochs = 10
+epochs = 7
 # optimiser = toptim.SGD(net.parameters(), lr=0.01)
 # lr = 0.1
 optimiser = toptim.Adam(net.parameters(), lr=0.01)
